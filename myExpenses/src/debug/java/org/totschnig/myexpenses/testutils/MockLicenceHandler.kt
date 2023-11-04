@@ -20,7 +20,6 @@ class MockLicenceHandler(
     clock: Clock
 ) : LicenceHandler(context, licenseStatusPrefs, crashHandler, prefHandler, repository, currencyFormatter, clock) {
     fun setLockState(locked: Boolean) {
-        this.licenceStatus = if (locked) null else LicenceStatus.PROFESSIONAL
         update()
     }
 }

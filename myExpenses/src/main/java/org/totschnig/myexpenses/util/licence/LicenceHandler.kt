@@ -10,7 +10,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.apache.commons.lang3.time.DateUtils
-import org.totschnig.myexpenses.BuildConfig
 import org.totschnig.myexpenses.R
 import org.totschnig.myexpenses.activity.IapActivity
 import org.totschnig.myexpenses.db2.Repository
@@ -45,13 +44,9 @@ open class LicenceHandler(
     private val currencyFormatter: ICurrencyFormatter,
     private val clock: Clock = Clock.systemUTC()
 ) {
-    private var hasOurLicence = false
-    private val isSandbox = BuildConfig.DEBUG
-    var licenceStatus: LicenceStatus? = null
-        internal set(value) {
-            crashHandler.putCustomData("Licence", value?.name ?: "null")
-            field = value
-        }
+    private val hasOurLicence = true
+    private val isSandbox = false
+    val licenceStatus: LicenceStatus? = LicenceStatus.PROFESSIONAL
     val addOnFeatures: MutableSet<ContribFeature> = mutableSetOf()
 
     val currencyUnit: CurrencyUnit = CurrencyUnit("EUR", "€", 2)
@@ -74,9 +69,6 @@ open class LicenceHandler(
 
     //called from PlayStoreLicenceHandler
     fun maybeUpgradeLicence(licenceStatus: LicenceStatus?) {
-        if (!hasOurLicence || this.licenceStatus?.greaterOrEqual(licenceStatus) != true) {
-            this.licenceStatus = licenceStatus
-        }
     }
 
     val isContribEnabled: Boolean
@@ -106,11 +98,6 @@ open class LicenceHandler(
         get() = licenceStatus?.isUpgradeable ?: true
 
     open fun init() {
-        this.licenceStatus = enumValueOrNull<LicenceStatus>(
-            licenseStatusPrefs.getString(LICENSE_STATUS_KEY, null)
-        )?.also {
-            hasOurLicence = true
-        }
         restoreAddOnFeatures()
     }
 
@@ -132,23 +119,9 @@ open class LicenceHandler(
     }
 
     open fun voidLicenceStatus(keepFeatures: Boolean) {
-        this.licenceStatus = null
-        licenseStatusPrefs.remove(LICENSE_STATUS_KEY)
-        licenseStatusPrefs.remove(LICENSE_VALID_SINCE_KEY)
-        licenseStatusPrefs.remove(LICENSE_VALID_UNTIL_KEY)
-        if (!keepFeatures) {
-            addOnFeatures.clear()
-            licenseStatusPrefs.remove(LICENSE_FEATURES)
-        }
-        if (addOnFeatures.isEmpty()) {
-            hasOurLicence = false
-        }
-        licenseStatusPrefs.commit()
     }
 
     open fun updateLicenceStatus(licence: Licence) {
-        hasOurLicence = true
-        this.licenceStatus = licence.type
         licenseStatusPrefs.putString(LICENSE_STATUS_KEY, licence.type?.name ?: "null")
         addFeatures(licence.featureList)
         if (licence.validSince != null) {
@@ -324,15 +297,7 @@ open class LicenceHandler(
         }
 
     fun handleExpiration() {
-        val licenceDuration = validUntilMillis - validSinceMillis
-        if (TimeUnit.MILLISECONDS.toDays(licenceDuration) > 240) { // roughly eight months
-            licenceStatus = LicenceStatus.EXTENDED_FALLBACK
-            licenseStatusPrefs.putString(LICENSE_STATUS_KEY, LicenceStatus.EXTENDED_FALLBACK.name)
-            licenseStatusPrefs.remove(LICENSE_VALID_UNTIL_KEY)
-            licenseStatusPrefs.commit()
-        } else {
-            voidLicenceStatus(true)
-        }
+        voidLicenceStatus(true)
     }
 
     fun prettyPrintStatus(context: Context): String? {
